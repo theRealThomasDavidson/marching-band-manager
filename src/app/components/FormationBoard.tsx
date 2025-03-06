@@ -11,6 +11,18 @@ interface FormationBoardProps {
 const FIELD_WIDTH = 100; // yards
 const FIELD_HEIGHT = 54; // yards
 
+// Add modulo function for proper number wrapping
+declare global {
+  interface Number {
+    mod(n: number): number;
+  }
+}
+
+Number.prototype.mod = function(n: number): number {
+  "use strict";
+  return ((this as number % n) + n) % n;
+};
+
 function yardsToPixels(yards: { x: number, y: number }, canvasWidth: number, canvasHeight: number) {
   return {
     x: (yards.x / FIELD_WIDTH) * canvasWidth,
@@ -39,47 +51,18 @@ interface GameState {
 export default function FormationBoard({ members, width, height }: FormationBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showDebugGrid, setShowDebugGrid] = useState(false);
-  const [gameState, setGameState] = useState<GameState>({
+  const gameStateRef = useRef<GameState>({
     bandStates: members.map(member => ({
       member,
       position: { x: member.start_x, y: member.start_y },
-      moving: 1 as 0 | 1 | -1  // Start all members moving
+      moving: 1 as 0 | 1 | -1
     })),
     time: 0
   });
-
-  const checkCollisions = () => {
-    let hasCollisions = false;
-    
-    for (let i = 0; i < gameState.bandStates.length; i++) {
-      const state1 = gameState.bandStates[i];
-      
-      for (let j = i + 1; j < gameState.bandStates.length; j++) {
-        const state2 = gameState.bandStates[j];
-
-        // Calculate distance between members
-        const dx = state1.position.x - state2.position.x;
-        const dy = state1.position.y - state2.position.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Check if distance is less than sum of radii
-        const sumOfRadii = (state1.member.radius + state2.member.radius);
-        if (distance < sumOfRadii) {
-          hasCollisions = true;
-          break;
-        }
-      }
-      if (hasCollisions) break;
-    }
-    
-    if (hasCollisions) {
-      setIsPlaying(false);
-    }
-    
-    return hasCollisions;
-  };
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showDebugGrid, setShowDebugGrid] = useState(false);
+  // This state is only used to trigger re-renders for UI updates
+  const [uiUpdateTrigger, setUiUpdateTrigger] = useState(0);
 
   const togglePlay = () => {
     const newIsPlaying = !isPlaying;
@@ -87,28 +70,22 @@ export default function FormationBoard({ members, width, height }: FormationBoar
     
     // When pressing play, ensure all non-finished members start moving
     if (newIsPlaying) {
-      setGameState(prevState => ({
-        ...prevState,
-        bandStates: prevState.bandStates.map(state => {
-          // Only update members that haven't reached their end position
-          const member = state.member;
-          const progress = Math.sqrt(
-            Math.pow(state.position.x - member.start_x, 2) + 
-            Math.pow(state.position.y - member.start_y, 2)
-          ) / Math.sqrt(
-            Math.pow(member.end_x - member.start_x, 2) + 
-            Math.pow(member.end_y - member.start_y, 2)
-          );
-          
-          if (progress < 1) {
-            return {
-              ...state,
-              moving: 1 as 0 | 1 | -1
-            };
-          }
-          return state;
-        })
-      }));
+      const currentState = gameStateRef.current;
+      
+      currentState.bandStates.forEach(state => {
+        const member = state.member;
+        const progress = Math.sqrt(
+          Math.pow(state.position.x - member.start_x, 2) + 
+          Math.pow(state.position.y - member.start_y, 2)
+        ) / Math.sqrt(
+          Math.pow(member.end_x - member.start_x, 2) + 
+          Math.pow(member.end_y - member.start_y, 2)
+        );
+        
+      });
+      
+      // Trigger UI update
+      setUiUpdateTrigger(prev => prev + 1);
     }
   };
 
@@ -118,100 +95,20 @@ export default function FormationBoard({ members, width, height }: FormationBoar
       cancelAnimationFrame(animationRef.current);
     }
 
-    const resetState = {
+    gameStateRef.current = {
       bandStates: members.map(member => ({
         member,
         position: { x: member.start_x, y: member.start_y },
-        moving: 1 as 0 | 1 | -1  // Reset to moving
+        moving: 1 as 0 | 1 | -1
       })),
       time: 0
     };
-
-    setGameState(resetState);
+    
+    // Trigger UI update
+    setUiUpdateTrigger(prev => prev + 1);
     
     // Force an immediate frame render
-    if (canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = '#2E7D32';
-        ctx.fillRect(0, 0, width, height);
-
-        // Draw yard lines
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        for (let yard = 0; yard <= FIELD_WIDTH; yard += 5) {
-          const linePos = yardsToPixels({ x: yard, y: 0 }, width, height);
-          ctx.beginPath();
-          ctx.moveTo(linePos.x, 0);
-          ctx.lineTo(linePos.x, height);
-          ctx.stroke();
-
-          if (yard % 10 === 0 && yard !== 0 && yard !== FIELD_WIDTH) {
-            ctx.save();
-            ctx.fillStyle = 'white';
-            ctx.font = '16px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(yard.toString(), linePos.x, 20);
-            ctx.restore();
-          }
-        }
-
-        // Draw reset band members
-        resetState.bandStates.forEach(state => {
-          const pixelPos = yardsToPixels(state.position, width, height);
-          const member = state.member;
-
-          // Color mapping
-          let color = '#FFFFFF';
-          if (member.instrumentType === 'brass') {
-            color = COLORS.brass;
-          } else if (member.instrumentType === 'woodwind') {
-            color = COLORS.woodwind;
-          } else if (member.instrumentType === 'percussion') {
-            color = COLORS.percussion;
-          }
-
-          // Draw member circle
-          ctx.beginPath();
-          ctx.arc(pixelPos.x, pixelPos.y, member.radius * 10, 0, Math.PI * 2);
-          ctx.fillStyle = color;
-          ctx.fill();
-          ctx.strokeStyle = 'black';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
-          // Draw member name
-          ctx.fillStyle = 'black';
-          ctx.font = '12px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText(member.name, pixelPos.x, pixelPos.y + member.radius * 10 + 15);
-        });
-
-        // Draw legend
-        const legendY = height - 30;
-        Object.entries(COLORS).forEach(([type, color], index) => {
-          const legendX = 10 + index * 120;
-          ctx.beginPath();
-          ctx.arc(legendX, legendY, 8, 0, Math.PI * 2);
-          ctx.fillStyle = color;
-          ctx.fill();
-          ctx.strokeStyle = 'black';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
-          ctx.fillStyle = 'black';
-          ctx.font = '14px Arial';
-          ctx.textAlign = 'left';
-          ctx.fillText(type.charAt(0).toUpperCase() + type.slice(1), legendX + 15, legendY + 5);
-        });
-
-        // Draw debug grid if enabled
-        if (showDebugGrid) {
-          drawDebugGrid(ctx);
-        }
-      }
-    }
+    renderFrame();
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -232,45 +129,146 @@ export default function FormationBoard({ members, width, height }: FormationBoar
     clickYards.y = clickYards.y * 1.182654;
 
     let clickedMember = false;
-    setGameState(prevState => {
-      const newBandStates = prevState.bandStates.map(state => {
-        const memberPos = state.position;
-        const scaledMemberPos = {
-          x: memberPos.x,
-          y: memberPos.y 
-        };
-        const clickRadius = state.member.radius;
+    const currentState = gameStateRef.current;
+    
+    currentState.bandStates.forEach(state => {
+      console.log(`${state.member.name}: ${state.moving}`);
+      const memberPos = state.position;
+      const scaledMemberPos = {
+        x: memberPos.x,
+        y: memberPos.y 
+      };
+      const clickRadius = state.member.radius;
 
-        const distance = Math.sqrt(
-          Math.pow(clickYards.x - scaledMemberPos.x, 2) + 
-          Math.pow(clickYards.y - scaledMemberPos.y, 2)
-        );
+      const distance = Math.sqrt(
+        Math.pow(clickYards.x - scaledMemberPos.x, 2) + 
+        Math.pow(clickYards.y - scaledMemberPos.y, 2)
+      );
 
-        if (distance <= clickRadius) {
-          clickedMember = true;
-          // Toggle between moving (1) and stopped (0)
-          const newMoving = state.moving === 0 ? 1 : 0;
-          console.log(`${state.member.name}: Toggling movement state from ${state.moving} to ${newMoving}`);
-          
-          // Verify state update
-          const updatedState = {
-            ...state,
-            moving: newMoving as 0 | 1 | -1
-          };
-          console.log(`${state.member.name}: Updated state:`, updatedState);
-          return updatedState;
-        }
-        return state;
-      });
-
-      // Log entire state update
-      console.log('New game state:', {
-        ...prevState,
-        bandStates: newBandStates
-      });
-      
-      return { ...prevState, bandStates: newBandStates };
+      if (distance <= clickRadius) {
+        clickedMember = true;
+        // Toggle between moving (1) and stopped (0)
+        state.moving = state.moving === 1 ? 0 : 1;
+        console.log(`${state.member.name}: Toggling movement state from ${state.moving === 0 ? 1 : 0} to ${state.moving}`);
+      }
     });
+
+    if (clickedMember) {
+      // Trigger UI update
+      setUiUpdateTrigger(prev => prev + 1);
+      // Force immediate render to show the change
+      renderFrame();
+    }
+  };
+
+  // Separate rendering function to avoid duplication
+  const renderFrame = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+
+    const currentState = gameStateRef.current;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#2E7D32';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw yard lines
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    for (let yard = 0; yard <= FIELD_WIDTH; yard += 5) {
+      const linePos = yardsToPixels({ x: yard, y: 0 }, width, height);
+      ctx.beginPath();
+      ctx.moveTo(linePos.x, 0);
+      ctx.lineTo(linePos.x, height);
+      ctx.stroke();
+
+      if (yard % 10 === 0 && yard !== 0 && yard !== FIELD_WIDTH) {
+        ctx.save();
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(yard.toString(), linePos.x, 20);
+        ctx.restore();
+      }
+    }
+
+    // Draw band members using yardsToPixels
+    currentState.bandStates.forEach(state => {
+      const pixelPos = yardsToPixels(state.position, width, height);
+      const member = state.member;
+
+      // Color mapping
+      let color = '#FFFFFF';
+      if (member.instrumentType === 'brass') {
+        color = COLORS.brass;
+      } else if (member.instrumentType === 'woodwind') {
+        color = COLORS.woodwind;
+      } else if (member.instrumentType === 'percussion') {
+        color = COLORS.percussion;
+      }
+
+      // Draw member circle
+      ctx.beginPath();
+      ctx.arc(pixelPos.x, pixelPos.y, member.radius * 10, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Draw member name
+      ctx.fillStyle = 'black';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(member.name, pixelPos.x, pixelPos.y + member.radius * 10 + 15);
+
+      // Draw stop indicator when member is stopped
+      if (state.moving === 0) {
+        // Draw red octagon (stop sign) behind the member
+        const stopRadius = member.radius * 4;
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const angle = (i * Math.PI / 4) + Math.PI / 8;
+          const x = pixelPos.x + stopRadius * Math.cos(angle);
+          const y = pixelPos.y + stopRadius * Math.sin(angle);
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';  // Semi-transparent red
+        ctx.fill();
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
+
+    // Draw legend
+    const legendY = height - 30;
+    Object.entries(COLORS).forEach(([type, color], index) => {
+      const legendX = 10 + index * 120;
+      ctx.beginPath();
+      ctx.arc(legendX, legendY, 8, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = 'black';
+      ctx.font = '14px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(type.charAt(0).toUpperCase() + type.slice(1), legendX + 15, legendY + 5);
+    });
+
+    // Draw debug grid if enabled
+    if (showDebugGrid) {
+      drawDebugGrid(ctx);
+    }
   };
 
   const drawDebugGrid = (ctx: CanvasRenderingContext2D) => {
@@ -308,14 +306,7 @@ export default function FormationBoard({ members, width, height }: FormationBoar
   };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
     let lastTime = 0;
-    let currentGameState = gameState;
 
     const animate = (currentTime: number) => {
       if (!lastTime) lastTime = currentTime;
@@ -324,77 +315,60 @@ export default function FormationBoard({ members, width, height }: FormationBoar
 
       // Update positions if playing
       if (isPlaying) {
-        const newBandStates = currentGameState.bandStates.map(state => {
+        const currentState = gameStateRef.current;
+        
+        // Modify states in place instead of creating new ones
+        currentState.bandStates.forEach(state => {
           const member = state.member;
           
           // Debug log for movement state and current position
           console.log(`${member.name}: Movement Check:`, {
             moving: state.moving,
-            currentPos: state.position,
-            startPos: { x: member.start_x, y: member.start_y },
-            endPos: { x: member.end_x, y: member.end_y },
-            speed: member.speed
+            speed: state.member.speed * state.moving
           });
 
-          const totalDistance = Math.sqrt(
-            Math.pow(member.end_x - member.start_x, 2) + 
-            Math.pow(member.end_y - member.start_y, 2)
-          );
+          // Calculate direction vector
+          const dx = member.end_x - member.start_x;
+          const dy = member.end_y - member.start_y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
           
-          const progress = Math.sqrt(
-            Math.pow(state.position.x - member.start_x, 2) + 
-            Math.pow(state.position.y - member.start_y, 2)
-          ) / totalDistance;
+          // Normalize direction vector
+          const dirX = dx / distance;
+          const dirY = dy / distance;
+          
+          // Calculate new position using moving state as multiplier
+          const moveAmount = member.speed * state.moving * deltaTime;
+          
+          // Update position directly
+          state.position.x += dirX * moveAmount;
+          state.position.y += dirY * moveAmount;
 
-          if (progress >= 1) {
+          // Check if we've reached or passed the destination
+          const newDx = member.end_x - state.position.x;
+          const newDy = member.end_y - state.position.y;
+          
+          // If we've passed the end point, clamp to it
+          if ((dx * newDx) <= 0 && (dy * newDy) <= 0) {
             console.log(`${member.name}: Reached destination`);
-            return {
-              ...state,
-              moving: 0 as 0 | 1 | -1,
-              position: { x: member.end_x, y: member.end_y }
-            };
+            state.moving = 0;
+            state.position.x = member.end_x;
+            state.position.y = member.end_y;
           }
-
-          // Skip progress calculation if not moving
-          if (state.moving === 0) {
-            console.log(`${member.name}: Skipping movement - stopped`);
-            return {
-              ...state,
-              position: { ...state.position } // Return current position unchanged
-            };
-          }
-
-          // Use moving state as multiplier with speed
-          const yardsToMove = member.speed * state.moving * deltaTime;
-          const progressIncrement = yardsToMove / totalDistance;
-          const newProgress = Math.min(1, progress + progressIncrement);
-
-          // Calculate and verify new position
-          const newPosition = {
-            x: member.start_x + (member.end_x - member.start_x) * newProgress,
-            y: member.start_y + (member.end_y - member.start_y) * newProgress
-          };
 
           console.log(`${member.name}: Movement Update:`, {
-            yardsToMove,
-            progressIncrement,
-            newProgress,
-            newPosition
+            moveAmount,
+            position: state.position,
+            moving: state.moving
           });
-
-          return {
-            ...state,
-            position: newPosition
-          };
         });
 
-        // Check for collisions after updating positions
+        // Check for collisions
         let hasCollisions = false;
-        for (let i = 0; i < newBandStates.length; i++) {
-          const state1 = newBandStates[i];
+        for (let i = 0; i < currentState.bandStates.length; i++) {
+          const state1 = currentState.bandStates[i];
           
-          for (let j = i + 1; j < newBandStates.length; j++) {
-            const state2 = newBandStates[j];
+          for (let j = i + 1; j < currentState.bandStates.length; j++) {
+            const state2 = currentState.bandStates[j];
 
             // Calculate distance between members
             const dx = state1.position.x - state2.position.x;
@@ -404,6 +378,8 @@ export default function FormationBoard({ members, width, height }: FormationBoar
             // Check if distance is less than sum of radii
             const sumOfRadii = (state1.member.radius + state2.member.radius);
             if (distance < sumOfRadii) {
+              console.log(`Collision detected between ${state1.member.name} and ${state2.member.name}!`);
+              console.log(`Distance: ${distance}, Required: ${sumOfRadii}`);
               hasCollisions = true;
               break;
             }
@@ -412,122 +388,20 @@ export default function FormationBoard({ members, width, height }: FormationBoar
         }
 
         if (hasCollisions) {
+          console.log("Formation halted due to collision!");
           setIsPlaying(false);
-          console.log("Collision detected! Formation halted.");
         }
 
-        currentGameState = {
-          bandStates: newBandStates,
-          time: currentGameState.time + deltaTime
-        };
+        // Update time
+        currentState.time += deltaTime;
 
-        // Update React state less frequently
-        setGameState(currentGameState);
-      }
-
-      // Drawing code
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = '#2E7D32';
-      ctx.fillRect(0, 0, width, height);
-
-      // Draw yard lines using yardsToPixels
-      ctx.strokeStyle = 'white';
-      ctx.lineWidth = 2;
-
-      for (let yard = 0; yard <= FIELD_WIDTH; yard += 5) {
-        const linePos = yardsToPixels({ x: yard, y: 0 }, width, height);
-        ctx.beginPath();
-        ctx.moveTo(linePos.x, 0);
-        ctx.lineTo(linePos.x, height);
-        ctx.stroke();
-
-        if (yard % 10 === 0 && yard !== 0 && yard !== FIELD_WIDTH) {
-          ctx.save();
-          ctx.fillStyle = 'white';
-          ctx.font = '16px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText(yard.toString(), linePos.x, 20);
-          ctx.restore();
+        // Trigger UI update occasionally (e.g., every 100ms)
+        if (Math.floor(currentState.time * 10) !== Math.floor((currentState.time + deltaTime) * 10)) {
+          setUiUpdateTrigger(prev => prev + 1);
         }
       }
 
-      // Draw band members using yardsToPixels
-      currentGameState.bandStates.forEach(state => {
-        const pixelPos = yardsToPixels(state.position, width, height);
-        const member = state.member;
-
-        // Color mapping
-        let color = '#FFFFFF';
-        if (member.instrumentType === 'brass') {
-          color = COLORS.brass;
-        } else if (member.instrumentType === 'woodwind') {
-          color = COLORS.woodwind;
-        } else if (member.instrumentType === 'percussion') {
-          color = COLORS.percussion;
-        }
-
-        // Draw member circle
-        ctx.beginPath();
-        ctx.arc(pixelPos.x, pixelPos.y, member.radius * 10, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // Draw member name
-        ctx.fillStyle = 'black';
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(member.name, pixelPos.x, pixelPos.y + member.radius * 10 + 15);
-
-        // Draw stop indicator when member is stopped
-        if (state.moving === 0) {
-          // Draw red octagon (stop sign) behind the member
-          const stopRadius = member.radius * 5;
-          ctx.beginPath();
-          for (let i = 0; i < 8; i++) {
-            const angle = (i * Math.PI / 4) + Math.PI / 8;
-            const x = pixelPos.x + stopRadius * Math.cos(angle);
-            const y = pixelPos.y + stopRadius * Math.sin(angle);
-            if (i === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
-          }
-          ctx.closePath();
-          ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';  // Semi-transparent red
-          ctx.fill();
-          ctx.strokeStyle = 'red';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-      });
-
-      // Draw legend
-      const legendY = height - 30;
-      Object.entries(COLORS).forEach(([type, color], index) => {
-        const legendX = 10 + index * 120;
-        ctx.beginPath();
-        ctx.arc(legendX, legendY, 8, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.fillStyle = 'black';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'left';
-        ctx.fillText(type.charAt(0).toUpperCase() + type.slice(1), legendX + 15, legendY + 5);
-      });
-
-      // Draw debug grid if enabled
-      if (showDebugGrid) {
-        drawDebugGrid(ctx);
-      }
-
+      renderFrame();
       animationRef.current = requestAnimationFrame(animate);
     };
 
@@ -540,8 +414,8 @@ export default function FormationBoard({ members, width, height }: FormationBoar
     };
   }, [members, width, height, isPlaying, showDebugGrid]);
 
-  // Calculate average progress
-  const averageProgress = gameState.bandStates.reduce((sum, state) => {
+  // Calculate average progress from current ref state
+  const averageProgress = gameStateRef.current.bandStates.reduce((sum, state) => {
     const member = state.member;
     const totalDistance = Math.sqrt(
       Math.pow(member.end_x - member.start_x, 2) + 
@@ -552,7 +426,7 @@ export default function FormationBoard({ members, width, height }: FormationBoar
       Math.pow(state.position.y - member.start_y, 2)
     );
     return sum + (currentDistance / totalDistance);
-  }, 0) / gameState.bandStates.length;
+  }, 0) / gameStateRef.current.bandStates.length;
 
   return (
     <div className="space-y-4">
@@ -582,7 +456,7 @@ export default function FormationBoard({ members, width, height }: FormationBoar
             Progress: {Math.round(averageProgress * 100)}%
           </div>
           <div className="text-gray-600">
-            Time: {gameState.time.toFixed(1)}s
+            Time: {gameStateRef.current.time.toFixed(1)}s
           </div>
         </div>
       </div>
