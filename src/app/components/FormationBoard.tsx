@@ -118,14 +118,100 @@ export default function FormationBoard({ members, width, height }: FormationBoar
       cancelAnimationFrame(animationRef.current);
     }
 
-    setGameState({
+    const resetState = {
       bandStates: members.map(member => ({
         member,
         position: { x: member.start_x, y: member.start_y },
         moving: 1 as 0 | 1 | -1  // Reset to moving
       })),
       time: 0
-    });
+    };
+
+    setGameState(resetState);
+    
+    // Force an immediate frame render
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = '#2E7D32';
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw yard lines
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        for (let yard = 0; yard <= FIELD_WIDTH; yard += 5) {
+          const linePos = yardsToPixels({ x: yard, y: 0 }, width, height);
+          ctx.beginPath();
+          ctx.moveTo(linePos.x, 0);
+          ctx.lineTo(linePos.x, height);
+          ctx.stroke();
+
+          if (yard % 10 === 0 && yard !== 0 && yard !== FIELD_WIDTH) {
+            ctx.save();
+            ctx.fillStyle = 'white';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(yard.toString(), linePos.x, 20);
+            ctx.restore();
+          }
+        }
+
+        // Draw reset band members
+        resetState.bandStates.forEach(state => {
+          const pixelPos = yardsToPixels(state.position, width, height);
+          const member = state.member;
+
+          // Color mapping
+          let color = '#FFFFFF';
+          if (member.instrumentType === 'brass') {
+            color = COLORS.brass;
+          } else if (member.instrumentType === 'woodwind') {
+            color = COLORS.woodwind;
+          } else if (member.instrumentType === 'percussion') {
+            color = COLORS.percussion;
+          }
+
+          // Draw member circle
+          ctx.beginPath();
+          ctx.arc(pixelPos.x, pixelPos.y, member.radius * 10, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.strokeStyle = 'black';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Draw member name
+          ctx.fillStyle = 'black';
+          ctx.font = '12px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(member.name, pixelPos.x, pixelPos.y + member.radius * 10 + 15);
+        });
+
+        // Draw legend
+        const legendY = height - 30;
+        Object.entries(COLORS).forEach(([type, color], index) => {
+          const legendX = 10 + index * 120;
+          ctx.beginPath();
+          ctx.arc(legendX, legendY, 8, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.strokeStyle = 'black';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = 'black';
+          ctx.font = '14px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText(type.charAt(0).toUpperCase() + type.slice(1), legendX + 15, legendY + 5);
+        });
+
+        // Draw debug grid if enabled
+        if (showDebugGrid) {
+          drawDebugGrid(ctx);
+        }
+      }
+    }
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
