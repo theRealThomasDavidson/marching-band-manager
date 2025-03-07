@@ -18,7 +18,6 @@ export interface BandMember {
   name: string;
   instrument: string;
   instrument_type: string;
-  instrumentType: string;
   radius: number;
   speed: number;
   created_at: string;

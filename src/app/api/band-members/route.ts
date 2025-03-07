@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    if (!data.instrumentType) {
+    if (!data.instrument_type) {
       return NextResponse.json(
         { error: 'Instrument type is required' },
         { status: 400 }
@@ -88,21 +88,24 @@ export async function POST(request: NextRequest) {
     
     // Create MIDI track for the band member
     const audioGenerator = new AudioGenerator();
-    const midiTrack = audioGenerator.generateMidiTrack(data.instrumentType);
+    const midiTrack = audioGenerator.generateMidiTrack(data.instrument_type);
 
     // Add MIDI track to the data
     const bandMemberData = {
       name: data.name,
       instrument: data.instrument,
-      instrumentType: data.instrumentType,
+      instrument_type: data.instrument_type,
       radius: data.radius || 1,
       speed: data.speed || 1,
       start_x: data.start_x,
       start_y: data.start_y,
       end_x: data.end_x,
       end_y: data.end_y,
-      movement_type: data.movement_type,
-      midiTracks: [midiTrack]
+      midi_track_notes: midiTrack.track_data.notes,
+      midi_track_lengths: midiTrack.track_data.lengths,
+      midi_track_tempo: 120,
+      midi_track_instrument: midiTrack.instrument_number,
+      midi_track_duration: midiTrack.duration
     };
     
     // Add band member to level

@@ -133,7 +133,7 @@ export default function LevelsPage() {
                     <h3 className="text-xl font-semibold text-green-900 mb-2">{level.name}</h3>
                     <div className="flex items-center text-sm text-green-700 mb-4">
                       <div>
-                        <span className="font-medium">Theme:</span> {level.musicTheme}
+                        <span className="font-medium">Theme:</span> {level.music_theme}
                       </div>
                     </div>
                     <div className="flex gap-3">

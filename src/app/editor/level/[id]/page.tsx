@@ -109,7 +109,7 @@ export default function LevelEditor() {
     // Function to create a band member sprite
     const createMemberSprite = (member: BandMember, isStart: boolean): PIXI.Sprite => {
       // Create circle sprite
-      const color = getInstrumentColor(member.instrumentType);
+      const color = getInstrumentColor(member.instrument_type);
       const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
       sprite.tint = color;
       sprite.width = sprite.height = member.radius * 20 || 30;
@@ -156,7 +156,7 @@ export default function LevelEditor() {
       
       // Draw line connecting start and end
       const line = new PIXI.Graphics();
-      line.lineStyle(2, getInstrumentColor(member.instrumentType), 0.3);
+      line.lineStyle(2, getInstrumentColor(member.instrument_type), 0.3);
       line.moveTo(member.start_x || 100, member.start_y || 100);
       line.lineTo(member.end_x || 300, member.end_y || 300);
       app.stage.addChild(line);
@@ -262,8 +262,8 @@ export default function LevelEditor() {
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-2">Level Details</h2>
         <div className="bg-gray-100 p-4 rounded">
-          <p><span className="font-medium">Description:</span> {level.description || 'No description'}</p>
-          <p><span className="font-medium">Difficulty:</span> {level.difficulty || 'Not set'}</p>
+          <p><span className="font-medium">Name:</span> {level.name}</p>
+          <p><span className="font-medium">Author:</span> {level.author}</p>
           <p><span className="font-medium">Song:</span> {level.song_title || 'Not set'}</p>
           <p><span className="font-medium">Tempo:</span> {level.tempo || 'Not set'} BPM</p>
         </div>
@@ -296,7 +296,7 @@ export default function LevelEditor() {
               >
                 <h3 className="font-medium">{member.name}</h3>
                 <p>Instrument: {member.instrument}</p>
-                <p>Type: {member.instrumentType}</p>
+                <p>Type: {member.instrument_type}</p>
                 <p>Start Position: ({member.start_x || 'N/A'}, {member.start_y || 'N/A'})</p>
                 <p>End Position: ({member.end_x || 'N/A'}, {member.end_y || 'N/A'})</p>
               </div>

@@ -159,14 +159,14 @@ export default function BandMembersPage() {
           {bandMembers.map(member => (
             <div 
               key={member.id} 
-              className={`border-2 p-4 rounded shadow ${getInstrumentColor(member.instrumentType)}`}
+              className={`border-2 p-4 rounded shadow ${getInstrumentColor(member.instrument_type)}`}
             >
               <h2 className="text-xl font-semibold">{member.name}</h2>
               <p className="text-sm text-gray-600">Level: {member.levelName}</p>
               
               <div className="mt-2">
                 <p><span className="font-medium">Instrument:</span> {member.instrument}</p>
-                <p><span className="font-medium">Type:</span> {member.instrumentType}</p>
+                <p><span className="font-medium">Type:</span> {member.instrument_type}</p>
                 <p><span className="font-medium">Radius:</span> {member.radius}</p>
                 <p><span className="font-medium">Speed:</span> {member.speed}</p>
                 
@@ -176,10 +176,6 @@ export default function BandMembersPage() {
                 
                 {member.end_x !== null && member.end_y !== null && (
                   <p><span className="font-medium">End Position:</span> ({member.end_x}, {member.end_y})</p>
-                )}
-                
-                {member.movement_type && (
-                  <p><span className="font-medium">Movement:</span> {member.movement_type}</p>
                 )}
               </div>
               

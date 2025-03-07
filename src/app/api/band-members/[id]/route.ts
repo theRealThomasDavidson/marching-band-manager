@@ -65,7 +65,7 @@ export async function PUT(
     // Basic properties
     if (data.name !== undefined) updates.name = data.name;
     if (data.instrument !== undefined) updates.instrument = data.instrument;
-    if (data.instrumentType !== undefined) updates.instrumentType = data.instrumentType;
+    if (data.instrument_type !== undefined) updates.instrument_type = data.instrument_type;
     if (data.radius !== undefined) updates.radius = data.radius;
     if (data.speed !== undefined) updates.speed = data.speed;
     
@@ -74,7 +74,6 @@ export async function PUT(
     if (data.start_y !== undefined) updates.start_y = data.start_y;
     if (data.end_x !== undefined) updates.end_x = data.end_x;
     if (data.end_y !== undefined) updates.end_y = data.end_y;
-    if (data.movement_type !== undefined) updates.movement_type = data.movement_type;
     
     // Check if there are any updates to apply
     if (Object.keys(updates).length === 0) {

@@ -1,14 +1,14 @@
 import MidiWriter from 'midi-writer-js';
 
 export class AudioGenerator {
-  generateMidiTrack(instrumentType: 'brass' | 'woodwind' | 'percussion') {
+  generateMidiTrack(instrument_type: 'brass' | 'woodwind' | 'percussion') {
     const track = new MidiWriter.Track();
     
     // Set 4/4 time signature (numerator, denominator, clocks per tick, notes per quarter)
     track.setTimeSignature(4, 4, 24, 8);
     
     // Add some default notes based on instrument type
-    const notes = instrumentType === 'percussion' 
+    const notes = instrument_type === 'percussion' 
       ? [35, 38, 42, 46] // Basic drum pattern
       : [60, 64, 67, 72]; // Basic melody in C major
       
@@ -25,8 +25,8 @@ export class AudioGenerator {
     const write = new MidiWriter.Writer(track);
     
     return {
-      instrument_number: instrumentType === 'percussion' ? 115 : 
-                        instrumentType === 'brass' ? 56 : 73,
+      instrument_number: instrument_type === 'percussion' ? 115 : 
+                        instrument_type === 'brass' ? 56 : 73,
       duration: 4,
       track_data: {
         notes,

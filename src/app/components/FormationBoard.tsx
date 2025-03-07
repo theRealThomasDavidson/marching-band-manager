@@ -74,7 +74,7 @@ export default function FormationBoard({ members, width, height }: FormationBoar
   const [volume, setVolume] = useState(0.5);
 
   // Helper function to map instrument types
-  const mapInstrumentType = (instrumentType: string): 'brass' | 'woodwind' | 'percussion' => {
+  const mapInstrumentType = (instrument_type: string): 'brass' | 'woodwind' | 'percussion' => {
     // Map specific instruments to their categories
     const instrumentMap: Record<string, 'brass' | 'woodwind' | 'percussion'> = {
       'tuba': 'brass',
@@ -89,7 +89,7 @@ export default function FormationBoard({ members, width, height }: FormationBoar
       'bass drum': 'percussion',
       'cymbals': 'percussion'
     };
-    return instrumentMap[instrumentType.toLowerCase()] || 'brass'; // Default to brass if unknown
+    return instrumentMap[instrument_type.toLowerCase()] || 'brass'; // Default to brass if unknown
   };
 
   // Update the consolidation effect
@@ -110,15 +110,13 @@ export default function FormationBoard({ members, width, height }: FormationBoar
           lengths: member.midi_track_lengths,
           tempo: member.midi_track_tempo,
           instrument: member.midi_track_instrument,
-          instrument_type: member.instrument_type,
-          instrumentType: member.instrumentType
+          instrument_type: member.instrument_type
         });
         return hasNotes && hasLengths;
       })
       .map(member => {
-        // Try all possible instrument type fields
-        const instrumentType = member.instrument_type || member.instrumentType || member.instrument;
-        const mappedInstrument = mapInstrumentType(instrumentType);
+        const type = member.instrument_type || member.instrument;
+        const mappedInstrument = mapInstrumentType(type);
         const pattern = {
           notes: member.midi_track_notes!,
           lengths: member.midi_track_lengths!,
@@ -129,7 +127,7 @@ export default function FormationBoard({ members, width, height }: FormationBoar
           ...pattern,
           noteCount: pattern.notes.length,
           lengthCount: pattern.lengths.length,
-          originalInstrument: instrumentType,
+          originalType: type,
           mappedInstrument,
           tempo: member.midi_track_tempo,
           midiInstrument: member.midi_track_instrument

@@ -7,34 +7,40 @@ export function useBandMusic(members: BandMember[], isPlaying: boolean) {
 
   useEffect(() => {
     // Initialize audio generator
-    const initAudio = async () => {
-      audioGeneratorRef.current = new AudioGenerator();
-      await audioGeneratorRef.current.initialize();
-      
-      // Create instruments for each member
-      members.forEach(member => {
-        audioGeneratorRef.current?.createInstrument(member.id, member.instrumentType);
-      });
-    };
-
-    initAudio();
+    audioGeneratorRef.current = new AudioGenerator();
+    
+    // Generate MIDI tracks for each member
+    members.forEach(member => {
+      const type = member.instrument_type as 'brass' | 'woodwind' | 'percussion';
+      const track = audioGeneratorRef.current?.generateMidiTrack(type);
+      if (track) {
+        // Store track data in member for later use
+        member.midi_track_notes = track.track_data.notes;
+        member.midi_track_lengths = track.track_data.lengths;
+        member.midi_track_tempo = track.track_data.tempo;
+        member.midi_track_duration = track.track_data.duration;
+        member.midi_track_instrument = track.instrument_number;
+      }
+    });
 
     return () => {
-      audioGeneratorRef.current?.stopAll();
+      // Cleanup if needed
     };
   }, [members]);
 
   useEffect(() => {
-    if (!audioGeneratorRef.current) return;
+    if (!audioGeneratorRef.current || !isPlaying) return;
 
-    if (isPlaying) {
-      // Play each member's sequence
-      members.forEach(member => {
-        audioGeneratorRef.current?.playNote(member.id);
-      });
-    } else {
-      audioGeneratorRef.current.stopAll();
-    }
+    // Play each member's sequence
+    members.forEach(member => {
+      if (member.midi_track_notes && member.midi_track_lengths) {
+        AudioGenerator.downloadMidi(
+          member.midi_track_notes,
+          member.midi_track_lengths,
+          `${member.name}_track.mid`
+        );
+      }
+    });
   }, [isPlaying, members]);
 
   return {

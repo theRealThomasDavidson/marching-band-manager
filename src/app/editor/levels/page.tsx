@@ -88,14 +88,14 @@ export default function LevelsPage() {
             <div key={level.id} className="border rounded shadow-sm overflow-hidden">
               <div className="p-4">
                 <h2 className="text-xl font-semibold mb-2">{level.name}</h2>
-                <p className="text-gray-600 mb-2">{level.description || 'No description'}</p>
-                <p className="mb-1">
-                  <span className="font-medium">Difficulty:</span> {level.difficulty || 'Not set'}
-                </p>
+                <p className="text-gray-600 mb-2">By {level.author}</p>
                 <p className="mb-1">
                   <span className="font-medium">Song:</span> {level.song_title || 'Not set'}
                 </p>
-                <p className="mb-3">
+                <p className="mb-1">
+                  <span className="font-medium">Tempo:</span> {level.tempo || 'Not set'} BPM
+                </p>
+                <p className="mb-1">
                   <span className="font-medium">Band Members:</span> {level.bandMembers?.length || 0}
                 </p>
                 <div className="flex gap-2">

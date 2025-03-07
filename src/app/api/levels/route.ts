@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { LevelRepository } from '@/services/database/repositories/LevelRepository';
 import { BandMember } from '@/models/BandMember';
-import { Formation } from '@/models/Formation';
 
 // Basic environment check
 console.log('API Route Environment Check:');
@@ -98,8 +97,8 @@ export async function PUT(request: Request) {
       song_title?: string;
       tempo?: number;
       bandMembers?: BandMember[];
-      formations?: Formation[];
-      [key: string]: string | number | BandMember[] | Formation[] | undefined;
+      formations?: any[];
+      [key: string]: string | number | BandMember[] | any[] | undefined;
     } = {
       name: body.name,
       description: body.description,

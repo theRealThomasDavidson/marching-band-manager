@@ -20,7 +20,7 @@ export default function EditBandMemberPage() {
   const [formData, setFormData] = useState<Partial<BandMember>>({
     name: '',
     instrument: '',
-    instrumentType: undefined,
+    instrument_type: undefined,
     radius: 1,
     speed: 1,
     start_x: undefined,
@@ -185,11 +185,11 @@ export default function EditBandMemberPage() {
           
           {/* Instrument Type */}
           <div>
-            <label htmlFor="instrumentType" className="block text-sm font-medium mb-1">Instrument Type</label>
+            <label htmlFor="instrument_type" className="block text-sm font-medium mb-1">Instrument Type</label>
             <select
-              id="instrumentType"
-              name="instrumentType"
-              value={formData.instrumentType || ''}
+              id="instrument_type"
+              name="instrument_type"
+              value={formData.instrument_type || ''}
               onChange={handleChange}
               className="w-full px-3 py-2 border rounded"
               required
@@ -305,22 +305,6 @@ export default function EditBandMemberPage() {
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="mt-4">
-              <label htmlFor="movement_type" className="block text-sm font-medium mb-1">Movement Type</label>
-              <select
-                id="movement_type"
-                name="movement_type"
-                value={formData.movement_type || ''}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border rounded"
-              >
-                <option value="">Select a movement type</option>
-                <option value="linear">Linear (Straight line)</option>
-                <option value="curved">Curved (Arc)</option>
-                <option value="bezier">Bezier (Complex curve)</option>
-              </select>
             </div>
           </div>
           

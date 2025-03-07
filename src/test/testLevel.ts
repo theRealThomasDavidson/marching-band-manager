@@ -1,6 +1,5 @@
 import { LevelService } from '@/services/LevelService';
 import { LevelRepository } from '@/services/database/repositories/LevelRepository';
-import { BandMember } from '@/models/BandMember';
 
 async function createTestLevel() {
   const levelRepository = new LevelRepository();
@@ -14,37 +13,52 @@ async function createTestLevel() {
     tempo: 120,
     bandMembers: [
       {
-        name: "Trumpet 1",
-        instrument: "Trumpet",
-        instrumentType: "brass" as const,
+        name: 'Trumpet Player 1',
+        instrument: 'trumpet',
+        instrument_type: "brass" as const,
         radius: 1,
         speed: 1,
-        start_x: 0,
-        start_y: 0,
-        end_x: 5,
-        end_y: 5
+        start_x: 10,
+        start_y: 10,
+        end_x: 20,
+        end_y: 20,
+        midi_track_notes: [60, 64, 67, 72],
+        midi_track_lengths: [480, 480, 480, 480],
+        midi_track_tempo: 120,
+        midi_track_instrument: 56,
+        midi_track_duration: 4
       },
       {
-        name: "Clarinet 1",
-        instrument: "Clarinet",
-        instrumentType: "woodwind" as const,
+        name: 'Flute Player 1',
+        instrument: 'flute',
+        instrument_type: "woodwind" as const,
         radius: 1,
         speed: 1,
-        start_x: 2,
-        start_y: 0,
-        end_x: 7,
-        end_y: 5
+        start_x: 30,
+        start_y: 30,
+        end_x: 40,
+        end_y: 40,
+        midi_track_notes: [72, 76, 79, 84],
+        midi_track_lengths: [480, 480, 480, 480],
+        midi_track_tempo: 120,
+        midi_track_instrument: 73,
+        midi_track_duration: 4
       },
       {
-        name: "Snare Drum",
-        instrument: "Snare",
-        instrumentType: "percussion" as const,
+        name: 'Drummer 1',
+        instrument: 'snare',
+        instrument_type: "percussion" as const,
         radius: 1,
         speed: 1,
-        start_x: 1,
-        start_y: 0,
-        end_x: 6,
-        end_y: 5
+        start_x: 50,
+        start_y: 50,
+        end_x: 60,
+        end_y: 60,
+        midi_track_notes: [35, 38, 42, 46],
+        midi_track_lengths: [480, 480, 480, 480],
+        midi_track_tempo: 120,
+        midi_track_instrument: 115,
+        midi_track_duration: 4
       }
     ]
   };

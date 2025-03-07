@@ -1,5 +1,6 @@
 import supabase, { supabaseAdmin } from '@/services/database/supabase';
 import { Level } from '@/models/Level';
+import { BandMember } from '@/models/BandMember';
 
 /**
  * Repository for managing Levels and Band Members using direct table operations
@@ -245,6 +246,26 @@ export class LevelRepository {
       return true;
     } catch (error) {
       console.error(`Error deleting level ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update a band member by ID
+   */
+  async updateBandMember(id: string, updates: Partial<BandMember>): Promise<BandMember | null> {
+    try {
+      const { data: updatedMember, error } = await supabaseAdmin
+        .from('band_members')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return updatedMember;
+    } catch (error) {
+      console.error(`Error updating band member ${id}:`, error);
       throw error;
     }
   }

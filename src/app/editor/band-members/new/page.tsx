@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Level } from '@/models/Level';
+import { BandMember } from '@/models/BandMember';
 
 /**
  * New Band Member page component
@@ -15,13 +16,16 @@ export default function NewBandMemberPage() {
   const [submitting, setSubmitting] = useState<boolean>(false);
   
   // Form state
-  const [formData, setFormData] = useState({
-    level_id: '',
+  const [formData, setFormData] = useState<Partial<BandMember>>({
     name: '',
     instrument: '',
-    instrumentType: 'brass', // Default value
+    instrument_type: 'brass', // Default value
     radius: 1,
-    speed: 1
+    speed: 1,
+    start_x: undefined,
+    start_y: undefined,
+    end_x: undefined,
+    end_y: undefined,
   });
   
   // Fetch levels for dropdown
@@ -81,12 +85,12 @@ export default function NewBandMemberPage() {
       return;
     }
     
-    if (!formData.name.trim()) {
+    if (!formData.name?.trim()) {
       alert('Please enter a name for the band member');
       return;
     }
     
-    if (!formData.instrument.trim()) {
+    if (!formData.instrument?.trim()) {
       alert('Please enter an instrument');
       return;
     }
@@ -202,11 +206,11 @@ export default function NewBandMemberPage() {
           
           {/* Instrument Type */}
           <div>
-            <label htmlFor="instrumentType" className="block text-sm font-medium mb-1">Instrument Type</label>
+            <label htmlFor="instrument_type" className="block text-sm font-medium mb-1">Instrument Type</label>
             <select
-              id="instrumentType"
-              name="instrumentType"
-              value={formData.instrumentType}
+              id="instrument_type"
+              name="instrument_type"
+              value={formData.instrument_type}
               onChange={handleChange}
               className="w-full px-3 py-2 border rounded"
               required

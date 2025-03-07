@@ -26,7 +26,6 @@ export default function FormationDisplay({ members }: FormationDisplayProps) {
       <div className="w-full aspect-[100/54] relative">
         <FormationBoard
           members={members}
-          type={showStarting ? 'start' : 'end'}
           width={1000}
           height={540}
         />

@@ -107,11 +107,23 @@ export class LevelService {
       const level = await this.repository.getById(levelId);
       if (!level) return null;
 
-      // Create band member
-      await this.repository.createBandMember(levelId, bandMemberData);
+      const now = new Date().toISOString();
 
-      // Return updated level
-      return await this.repository.getById(levelId);
+      // Add band member to the level's band members array
+      const updatedLevel = await this.repository.update(levelId, {
+        bandMembers: [
+          ...(level.bandMembers || []), 
+          {
+            id: `temp_${Date.now()}`, // Will be replaced by the database
+            level_id: levelId,
+            created_at: now,
+            updated_at: now,
+            ...bandMemberData
+          } as BandMember
+        ]
+      });
+
+      return updatedLevel;
     } catch (error) {
       console.error(`Error in LevelService.addBandMemberToLevel(${levelId}):`, error);
       throw error;
