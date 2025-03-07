@@ -1,78 +1,56 @@
-# Workers Directory
+# Web Workers
 
-This directory contains Web Workers for handling CPU-intensive tasks off the main thread.
+This directory contains web workers used for handling computationally intensive tasks in the background.
 
-## Structure
+## Workers
 
-- `magenta-worker.js` - AI generation worker using Magenta.js
-- `audio-worker.js` - Audio processing worker
+- `midi-worker.js` - MIDI file generation and processing
+- `audio-worker.js` - Audio synthesis and playback
 
-## Purpose
+## Usage
 
-The workers directory contains Web Worker implementations that handle computationally intensive tasks without blocking the main thread. This ensures smooth UI performance while processing complex operations.
+Each worker is designed to handle specific tasks without blocking the main thread:
 
-## Key Workers
-
-1. **Magenta Worker** (`magenta-worker.js`)
-   - AI-based music generation
-   - MIDI processing
-   - Pattern recognition
-   - Music analysis
-   - Formation suggestions
+1. **MIDI Worker** (`midi-worker.js`)
+   - Generates MIDI files from pattern data
+   - Processes MIDI file imports
+   - Handles MIDI file exports
 
 2. **Audio Worker** (`audio-worker.js`)
-   - Real-time audio processing
-   - MIDI synthesis
-   - Audio visualization
-   - Sound mixing
-   - Audio effects
+   - Synthesizes audio from MIDI data
+   - Handles real-time audio playback
+   - Manages audio buffer processing
 
-## Worker Guidelines
+## Implementation
 
-1. Communication:
-   - Use structured message passing
-   - Handle errors properly
-   - Implement proper termination
-   - Manage worker lifecycle
+Workers communicate with the main thread using the standard Web Worker API:
 
-2. Performance:
-   - Optimize processing algorithms
-   - Handle memory efficiently
-   - Implement proper chunking
-   - Monitor worker load
-
-3. Error Handling:
-   - Implement proper error boundaries
-   - Handle worker crashes
-   - Provide fallback mechanisms
-   - Log errors appropriately
-
-4. Testing:
-   - Test worker communication
-   - Verify processing results
-   - Test error scenarios
-   - Measure performance
-
-## Usage Example
-
-```typescript
-// Creating a worker
-const worker = new Worker('path/to/worker.js');
-
-// Sending message to worker
-worker.postMessage({
-  type: 'process',
-  data: someData
-});
-
-// Handling worker response
-worker.onmessage = (event) => {
-  const result = event.data;
-  // Handle result
+```javascript
+// Main thread
+const worker = new Worker('/workers/midi-worker.js');
+worker.postMessage({ type: 'generate', data: patternData });
+worker.onmessage = (e) => {
+  const { midiFile } = e.data;
+  // Handle the generated MIDI file
 };
 
-// Error handling
-worker.onerror = (error) => {
-  console.error('Worker error:', error);
+// Worker thread
+self.onmessage = (e) => {
+  const { type, data } = e.data;
+  switch (type) {
+    case 'generate':
+      const midiFile = generateMidiFile(data);
+      self.postMessage({ midiFile });
+      break;
+  }
 };
-``` 
+```
+
+## Error Handling
+
+Workers include robust error handling to manage:
+- Invalid input data
+- Resource limitations
+- Processing failures
+
+Errors are communicated back to the main thread with appropriate error codes and messages. 

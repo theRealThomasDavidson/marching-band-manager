@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BandMember, BandMemberState } from '@/models/BandMember';
+import { MidiPlayer } from '@/services/MidiPlayer';
 
 interface FormationBoardProps {
   members: BandMember[];
@@ -51,6 +52,12 @@ interface GameState {
 export default function FormationBoard({ members, width, height }: FormationBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
+  const consolidatedPatternsRef = useRef<{
+    notes: number[];
+    lengths: number[];
+    instrument: 'brass' | 'woodwind' | 'percussion';
+    type: 'point';
+  }[]>([]);
   const gameStateRef = useRef<GameState>({
     bandStates: members.map(member => ({
       member,
@@ -61,39 +68,161 @@ export default function FormationBoard({ members, width, height }: FormationBoar
   });
   const [isPlaying, setIsPlaying] = useState(false);
   const [showDebugGrid, setShowDebugGrid] = useState(false);
-  // This state is only used to trigger re-renders for UI updates
   const [uiUpdateTrigger, setUiUpdateTrigger] = useState(0);
+  const [isVictory, setIsVictory] = useState(false);
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.5);
 
+  // Helper function to map instrument types
+  const mapInstrumentType = (instrumentType: string): 'brass' | 'woodwind' | 'percussion' => {
+    // Map specific instruments to their categories
+    const instrumentMap: Record<string, 'brass' | 'woodwind' | 'percussion'> = {
+      'tuba': 'brass',
+      'trumpet': 'brass',
+      'trombone': 'brass',
+      'french horn': 'brass',
+      'flute': 'woodwind',
+      'clarinet': 'woodwind',
+      'saxophone': 'woodwind',
+      'oboe': 'woodwind',
+      'snare': 'percussion',
+      'bass drum': 'percussion',
+      'cymbals': 'percussion'
+    };
+    return instrumentMap[instrumentType.toLowerCase()] || 'brass'; // Default to brass if unknown
+  };
+
+  // Update the consolidation effect
+  useEffect(() => {
+    console.log('Starting pattern consolidation...');
+    console.log('Raw members data:', JSON.stringify(members, null, 2));
+    
+    consolidatedPatternsRef.current = members
+      .filter(member => {
+        const hasNotes = Array.isArray(member.midi_track_notes) && member.midi_track_notes.length > 0;
+        const hasLengths = Array.isArray(member.midi_track_lengths) && member.midi_track_lengths.length > 0;
+        console.log(`Member ${member.name} validation:`, {
+          hasNotes,
+          hasLengths,
+          noteCount: member.midi_track_notes?.length,
+          lengthCount: member.midi_track_lengths?.length,
+          notes: member.midi_track_notes,
+          lengths: member.midi_track_lengths,
+          tempo: member.midi_track_tempo,
+          instrument: member.midi_track_instrument,
+          instrument_type: member.instrument_type,
+          instrumentType: member.instrumentType
+        });
+        return hasNotes && hasLengths;
+      })
+      .map(member => {
+        // Try all possible instrument type fields
+        const instrumentType = member.instrument_type || member.instrumentType || member.instrument;
+        const mappedInstrument = mapInstrumentType(instrumentType);
+        const pattern = {
+          notes: member.midi_track_notes!,
+          lengths: member.midi_track_lengths!,
+          instrument: mappedInstrument,
+          type: 'point' as const
+        };
+        console.log(`Created pattern for ${member.name}:`, {
+          ...pattern,
+          noteCount: pattern.notes.length,
+          lengthCount: pattern.lengths.length,
+          originalInstrument: instrumentType,
+          mappedInstrument,
+          tempo: member.midi_track_tempo,
+          midiInstrument: member.midi_track_instrument
+        });
+        return pattern;
+      });
+
+    console.log('Final consolidated patterns:', {
+      count: consolidatedPatternsRef.current.length,
+      patterns: JSON.stringify(consolidatedPatternsRef.current, null, 2)
+    });
+  }, [members]);
+
+  // Update toggleMusic with more logging
+  const toggleMusic = () => {
+    console.log('Music toggle pressed. Current state:', {
+      isMusicPlaying,
+      patternsAvailable: consolidatedPatternsRef.current.length,
+      currentTime: gameStateRef.current.time,
+      patterns: JSON.stringify(consolidatedPatternsRef.current, null, 2)
+    });
+
+    if (isMusicPlaying) {
+      console.log('Stopping music playback');
+      MidiPlayer.stopAll();
+      setIsMusicPlaying(false);
+    } else {
+      console.log('Attempting to start music playback');
+      if (consolidatedPatternsRef.current.length > 0) {
+        console.log('Starting playback with patterns:', {
+          count: consolidatedPatternsRef.current.length,
+          patterns: consolidatedPatternsRef.current.map(p => ({
+            instrument: p.instrument,
+            noteCount: p.notes.length,
+            lengthCount: p.lengths.length,
+            notes: p.notes,
+            lengths: p.lengths
+          }))
+        });
+        const currentTime = gameStateRef.current.time;
+        console.log('Using current game time:', currentTime);
+        
+        try {
+          MidiPlayer.playMultiplePatterns(consolidatedPatternsRef.current, true, currentTime);
+          console.log('Successfully started playback');
+          setIsMusicPlaying(true);
+        } catch (error) {
+          console.error('Error starting playback:', error);
+        }
+      } else {
+        console.warn('No patterns available to play');
+      }
+    }
+  };
+
+  // Update cleanup to stop music
+  useEffect(() => {
+    return () => {
+      MidiPlayer.stopAll();
+    };
+  }, []);
+
+  // Update togglePlay to handle music
   const togglePlay = () => {
     const newIsPlaying = !isPlaying;
     setIsPlaying(newIsPlaying);
     
-    // When pressing play, ensure all non-finished members start moving
-    if (newIsPlaying) {
-      const currentState = gameStateRef.current;
-      
-      currentState.bandStates.forEach(state => {
-        const member = state.member;
-        const progress = Math.sqrt(
-          Math.pow(state.position.x - member.start_x, 2) + 
-          Math.pow(state.position.y - member.start_y, 2)
-        ) / Math.sqrt(
-          Math.pow(member.end_x - member.start_x, 2) + 
-          Math.pow(member.end_y - member.start_y, 2)
-        );
-        
-      });
-      
-      // Trigger UI update
-      setUiUpdateTrigger(prev => prev + 1);
+    // Start/stop music with the game
+    if (newIsPlaying && !isMusicPlaying) {
+      if (consolidatedPatternsRef.current.length > 0) {
+        MidiPlayer.playMultiplePatterns(consolidatedPatternsRef.current, true, gameStateRef.current.time);
+        setIsMusicPlaying(true);
+      }
+    } else if (!newIsPlaying && isMusicPlaying) {
+      MidiPlayer.stopAll();
+      setIsMusicPlaying(false);
     }
+    
+    // Trigger UI update
+    setUiUpdateTrigger(prev => prev + 1);
   };
 
+  // Update resetGame to stop music
   const resetGame = () => {
     setIsPlaying(false);
+    setIsVictory(false);
+    setIsMusicPlaying(false);
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
+
+    // Stop any playing music
+    MidiPlayer.stopAll();
 
     gameStateRef.current = {
       bandStates: members.map(member => ({
@@ -125,31 +254,34 @@ export default function FormationBoard({ members, width, height }: FormationBoar
     
     // Convert click to yard coordinates
     let clickYards = pixelsToYards(rawPixels, width, height);
-    clickYards.x = clickYards.x * 1.182654;
-    clickYards.y = clickYards.y * 1.182654;
-
+    clickYards.x = clickYards.x * 0.6798866855524079;
+    clickYards.y = clickYards.y * 0.6763285024154589;
+    console.log('Click position (yards):', clickYards);
     let clickedMember = false;
     const currentState = gameStateRef.current;
     
     currentState.bandStates.forEach(state => {
-      console.log(`${state.member.name}: ${state.moving}`);
-      const memberPos = state.position;
-      const scaledMemberPos = {
-        x: memberPos.x,
-        y: memberPos.y 
-      };
-      const clickRadius = state.member.radius;
+        const memberPos = state.position;
+      console.log(`${state.member.name} position:`, memberPos);
+      
+        const scaledMemberPos = {
+          x: memberPos.x,
+          y: memberPos.y 
+        };
+        const clickRadius = state.member.radius;
 
-      const distance = Math.sqrt(
-        Math.pow(clickYards.x - scaledMemberPos.x, 2) + 
-        Math.pow(clickYards.y - scaledMemberPos.y, 2)
-      );
+        const distance = Math.sqrt(
+          Math.pow(clickYards.x - scaledMemberPos.x, 2) + 
+          Math.pow(clickYards.y - scaledMemberPos.y, 2)
+        );
 
-      if (distance <= clickRadius) {
-        clickedMember = true;
-        // Toggle between moving (1) and stopped (0)
+        if (distance <= clickRadius) {
+          clickedMember = true;
         state.moving = state.moving === 1 ? 0 : 1;
-        console.log(`${state.member.name}: Toggling movement state from ${state.moving === 0 ? 1 : 0} to ${state.moving}`);
+        console.log(`Clicked ${state.member.name} - New state:`, {
+          position: memberPos,
+          moving: state.moving
+        });
       }
     });
 
@@ -172,6 +304,18 @@ export default function FormationBoard({ members, width, height }: FormationBoar
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = '#2E7D32';
     ctx.fillRect(0, 0, width, height);
+
+    // Draw victory overlay if victory achieved
+    if (isVictory) {
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.2)'; // Semi-transparent gold
+      ctx.fillRect(0, 0, width, height);
+      
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Formation Complete!', width / 2, height / 2);
+    }
 
     // Draw yard lines
     ctx.strokeStyle = 'white';
@@ -200,17 +344,19 @@ export default function FormationBoard({ members, width, height }: FormationBoar
 
       // Color mapping
       let color = '#FFFFFF';
-      if (member.instrumentType === 'brass') {
+      const mappedInstrument = mapInstrumentType(member.instrument_type || member.instrument);
+      if (mappedInstrument === 'brass') {
         color = COLORS.brass;
-      } else if (member.instrumentType === 'woodwind') {
+      } else if (mappedInstrument === 'woodwind') {
         color = COLORS.woodwind;
-      } else if (member.instrumentType === 'percussion') {
+      } else if (mappedInstrument === 'percussion') {
         color = COLORS.percussion;
       }
 
       // Draw member circle
       ctx.beginPath();
-      ctx.arc(pixelPos.x, pixelPos.y, member.radius * 10, 0, Math.PI * 2);
+      const scaledRadius = (member.radius / FIELD_WIDTH) * width;
+      ctx.arc(pixelPos.x, pixelPos.y, scaledRadius, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
       ctx.strokeStyle = 'black';
@@ -221,12 +367,12 @@ export default function FormationBoard({ members, width, height }: FormationBoar
       ctx.fillStyle = 'black';
       ctx.font = '12px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(member.name, pixelPos.x, pixelPos.y + member.radius * 10 + 15);
+      ctx.fillText(member.name, pixelPos.x, pixelPos.y + scaledRadius + 15);
 
       // Draw stop indicator when member is stopped
       if (state.moving === 0) {
         // Draw red octagon (stop sign) behind the member
-        const stopRadius = member.radius * 4;
+        const stopRadius = scaledRadius * .4;
         ctx.beginPath();
         for (let i = 0; i < 8; i++) {
           const angle = (i * Math.PI / 4) + Math.PI / 8;
@@ -317,16 +463,27 @@ export default function FormationBoard({ members, width, height }: FormationBoar
       if (isPlaying) {
         const currentState = gameStateRef.current;
         
-        // Modify states in place instead of creating new ones
+        // Check if all members have stopped
+        const allStopped = currentState.bandStates.every(state => state.moving === 0);
+        if (allStopped) {
+          console.log("All band members have stopped!");
+          setIsPlaying(false);
+          // Check if they're all at their destinations
+          const allAtDestination = currentState.bandStates.every(state => 
+            Math.abs(state.position.x - state.member.end_x) < 0.01 && 
+            Math.abs(state.position.y - state.member.end_y) < 0.01
+          );
+          if (allAtDestination) {
+            console.log("Formation complete! All members at their destinations.");
+            setIsVictory(true);
+          } else {
+            console.log("Formation incomplete - some members stopped before reaching destination.");
+          }
+        }
+
         currentState.bandStates.forEach(state => {
           const member = state.member;
           
-          // Debug log for movement state and current position
-          console.log(`${member.name}: Movement Check:`, {
-            moving: state.moving,
-            speed: state.member.speed * state.moving
-          });
-
           // Calculate direction vector
           const dx = member.end_x - member.start_x;
           const dy = member.end_y - member.start_y;
@@ -349,17 +506,10 @@ export default function FormationBoard({ members, width, height }: FormationBoar
           
           // If we've passed the end point, clamp to it
           if ((dx * newDx) <= 0 && (dy * newDy) <= 0) {
-            console.log(`${member.name}: Reached destination`);
             state.moving = 0;
             state.position.x = member.end_x;
             state.position.y = member.end_y;
           }
-
-          console.log(`${member.name}: Movement Update:`, {
-            moveAmount,
-            position: state.position,
-            moving: state.moving
-          });
         });
 
         // Check for collisions
@@ -428,15 +578,29 @@ export default function FormationBoard({ members, width, height }: FormationBoar
     return sum + (currentDistance / totalDistance);
   }, 0) / gameStateRef.current.bandStates.length;
 
+  // Handle volume change
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    MidiPlayer.setMasterVolume(newVolume);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div className="space-x-2">
           <button
             onClick={togglePlay}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+            className={`px-4 py-2 ${isVictory ? 'bg-yellow-500' : 'bg-blue-500'} text-white rounded-md hover:${isVictory ? 'bg-yellow-600' : 'bg-blue-600'}`}
           >
-            {isPlaying ? 'Pause' : (averageProgress >= 1 ? 'Replay' : 'Play')}
+            {isPlaying ? 'Pause' : (isVictory ? 'Watch Again' : 'Play')}
+          </button>
+          <button
+            onClick={toggleMusic}
+            className={`px-4 py-2 ${isMusicPlaying ? 'bg-red-500' : 'bg-green-500'} text-white rounded-md hover:${isMusicPlaying ? 'bg-red-600' : 'bg-green-600'}`}
+            disabled={consolidatedPatternsRef.current.length === 0}
+          >
+            {isMusicPlaying ? 'Stop Music' : 'Play Music'}
           </button>
           <button
             onClick={resetGame}
@@ -450,6 +614,18 @@ export default function FormationBoard({ members, width, height }: FormationBoar
           >
             {showDebugGrid ? 'Hide Grid' : 'Show Grid'}
           </button>
+          <div className="inline-flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Volume:</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={volume}
+              onChange={handleVolumeChange}
+              className="w-24"
+            />
+          </div>
         </div>
         <div className="flex gap-4 text-sm">
           <div className="text-gray-600">

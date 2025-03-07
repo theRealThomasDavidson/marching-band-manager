@@ -17,17 +17,23 @@ export interface BandMember {
   level_id: string;
   name: string;
   instrument: string;
-  instrumentType: 'brass' | 'woodwind' | 'percussion';
+  instrument_type: string;
+  instrumentType: string;
   radius: number;
   speed: number;
   created_at: string;
   updated_at: string;
-  
-  // Position information
   start_x: number;
   start_y: number;
   end_x: number;
   end_y: number;
+  
+  // MIDI data fields - required for music playback
+  midi_track_notes: number[];
+  midi_track_lengths: number[];
+  midi_track_tempo: number;
+  midi_track_duration: number;
+  midi_track_instrument: number;
   
   // Current position during gameplay (not stored in DB)
   state?: BandMemberState;

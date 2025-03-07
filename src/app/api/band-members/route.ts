@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { LevelRepository } from '@/services/database/repositories/LevelRepository';
 import { LevelService } from '@/services/LevelService';
 import { BandMember } from '@/models/BandMember';
+import { AudioGenerator } from '@/services/MidiGenerator';
 
 const repository = new LevelRepository();
 const service = new LevelService(repository);
@@ -85,7 +86,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Prepare band member data
+    // Create MIDI track for the band member
+    const audioGenerator = new AudioGenerator();
+    const midiTrack = audioGenerator.generateMidiTrack(data.instrumentType);
+
+    // Add MIDI track to the data
     const bandMemberData = {
       name: data.name,
       instrument: data.instrument,
@@ -97,7 +102,7 @@ export async function POST(request: NextRequest) {
       end_x: data.end_x,
       end_y: data.end_y,
       movement_type: data.movement_type,
-      midiTracks: data.midiTracks || []
+      midiTracks: [midiTrack]
     };
     
     // Add band member to level

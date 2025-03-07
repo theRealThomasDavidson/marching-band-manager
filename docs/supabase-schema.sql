@@ -31,29 +31,17 @@ CREATE TABLE band_members (
   end_y FLOAT NOT NULL,
   radius FLOAT NOT NULL DEFAULT 1,
   speed FLOAT NOT NULL DEFAULT 1,
-  midi_track JSONB DEFAULT jsonb_build_object(
-    'notes', '[]'::JSONB,
-    'tempo', 120,
-    'instrument', 0,
-    'duration', 0
-  ),
+  midi_track_notes INTEGER[] DEFAULT ARRAY[]::INTEGER[],
+  midi_track_lengths INTEGER[] DEFAULT ARRAY[]::INTEGER[],
+  midi_track_tempo INTEGER DEFAULT 120,
+  midi_track_instrument INTEGER DEFAULT 0,
+  midi_track_duration INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- MIDI Tracks Table
-drop table if exists midi_tracks cascade;
-CREATE TABLE midi_tracks (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  band_member_id UUID NOT NULL REFERENCES band_members(id) ON DELETE CASCADE,
-  tempo INTEGER NOT NULL DEFAULT 120,
-  instrument_number INTEGER NOT NULL,
-  duration FLOAT NOT NULL,
-  track_data JSONB, -- Store the track data as JSON
-  track_number INTEGER,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+DROP TABLE IF EXISTS midi_tracks CASCADE;
 
 -- Update modified column function
 drop function if exists update_modified_column;
@@ -75,12 +63,6 @@ EXECUTE FUNCTION update_modified_column();
 drop trigger if exists set_band_members_updated_at on band_members;
 CREATE TRIGGER set_band_members_updated_at
 BEFORE UPDATE ON band_members
-FOR EACH ROW
-EXECUTE FUNCTION update_modified_column();
-
-drop trigger if exists set_midi_tracks_updated_at on midi_tracks; 
-CREATE TRIGGER set_midi_tracks_updated_at
-BEFORE UPDATE ON midi_tracks
 FOR EACH ROW
 EXECUTE FUNCTION update_modified_column();
 
@@ -129,7 +111,12 @@ BEGIN
       end_x,
       end_y,
       radius,
-      speed
+      speed,
+      midi_track_notes,
+      midi_track_lengths,
+      midi_track_tempo,
+      midi_track_instrument,
+      midi_track_duration
     ) VALUES (
       created_level_id,
       band_member_data->>'name',
@@ -140,32 +127,15 @@ BEGIN
       (band_member_data->>'end_x')::FLOAT,
       (band_member_data->>'end_y')::FLOAT,
       COALESCE((band_member_data->>'radius')::FLOAT, 1),
-      COALESCE((band_member_data->>'speed')::FLOAT, 1)
+      COALESCE((band_member_data->>'speed')::FLOAT, 1),
+      band_member_data->'midi_track_notes',
+      band_member_data->'midi_track_lengths',
+      band_member_data->'midi_track_tempo',
+      band_member_data->'midi_track_instrument',
+      band_member_data->'midi_track_duration'
     )
     RETURNING id INTO created_band_member_id;
 
-    -- Process MIDI tracks for this band member
-    IF band_member_data ? 'midiTracks' AND jsonb_array_length(band_member_data->'midiTracks') > 0 THEN
-      FOR midi_track_data IN SELECT * FROM jsonb_array_elements(band_member_data->'midiTracks')
-      LOOP
-        -- Insert the MIDI track
-        INSERT INTO midi_tracks (
-          band_member_id,
-          tempo,
-          instrument_number,
-          duration,
-          track_data,
-          track_number
-        ) VALUES (
-          created_band_member_id,
-          COALESCE((midi_track_data->>'tempo')::INTEGER, (level_data->>'tempo')::INTEGER, 120),
-          (midi_track_data->>'instrument_number')::INTEGER,
-          (midi_track_data->>'duration')::FLOAT,
-          midi_track_data->'track_data',
-          (midi_track_data->>'track_number')::INTEGER
-        );
-      END LOOP;
-    END IF;
   END LOOP;
 
   -- Return the created level id

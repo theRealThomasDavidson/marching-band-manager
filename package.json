@@ -9,11 +9,16 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@magenta/music": "1.23.1",
     "@supabase/supabase-js": "^2.49.1",
+    "@tensorflow/tfjs": "2.8.6",
+    "midi-writer-js": "^3.1.1",
     "next": "^14.0.0",
+    "openai": "^4.86.2",
     "pixi.js": "^8.8.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "tone": "14.9.17"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

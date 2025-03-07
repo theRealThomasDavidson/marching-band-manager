@@ -42,7 +42,26 @@ export class LevelRepository {
         .from('levels')
         .select(`
           *,
-          band_members (*)
+          band_members (
+            id,
+            level_id,
+            name,
+            instrument,
+            instrument_type,
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            radius,
+            speed,
+            midi_track_notes,
+            midi_track_lengths,
+            midi_track_tempo,
+            midi_track_instrument,
+            midi_track_duration,
+            created_at,
+            updated_at
+          )
         `)
         .order('name');
 
@@ -63,7 +82,26 @@ export class LevelRepository {
         .from('levels')
         .select(`
           *,
-          band_members (*)
+          band_members (
+            id,
+            level_id,
+            name,
+            instrument,
+            instrument_type,
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+            radius,
+            speed,
+            midi_track_notes,
+            midi_track_lengths,
+            midi_track_tempo,
+            midi_track_instrument,
+            midi_track_duration,
+            created_at,
+            updated_at
+          )
         `)
         .eq('id', id)
         .single();
@@ -89,20 +127,18 @@ export class LevelRepository {
     bandMembers?: {
       name: string;
       instrument: string;
-      instrumentType: string;
+      instrument_type: string;
       start_x: number;
       start_y: number;
       end_x: number;
       end_y: number;
       radius?: number;
       speed?: number;
-      midiTracks?: {
-        tempo?: number;
-        instrument_number: number;
-        duration: number;
-        track_data: Record<string, unknown>;
-        track_number: number;
-      }[];
+      midi_track_notes: number[];
+      midi_track_lengths: number[];
+      midi_track_tempo: number;
+      midi_track_instrument: number;
+      midi_track_duration: number;
     }[];
   }): Promise<Level> {
     try {
@@ -143,13 +179,18 @@ export class LevelRepository {
           level_id: createdLevel.id,
           name: member.name,
           instrument: member.instrument,
-          instrument_type: member.instrumentType,
+          instrument_type: member.instrument_type,
           start_x: member.start_x,
           start_y: member.start_y,
           end_x: member.end_x,
           end_y: member.end_y,
           radius: member.radius || 1,
-          speed: member.speed || 1
+          speed: member.speed || 1,
+          midi_track_notes: member.midi_track_notes,
+          midi_track_lengths: member.midi_track_lengths,
+          midi_track_tempo: member.midi_track_tempo,
+          midi_track_instrument: member.midi_track_instrument,
+          midi_track_duration: member.midi_track_duration
         }));
 
         const { error: bandMembersError } = await supabaseAdmin

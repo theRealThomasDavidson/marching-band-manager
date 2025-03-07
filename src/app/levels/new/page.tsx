@@ -2,6 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AudioGenerator } from '@/services/MidiGenerator';
+import { MidiPlayer } from '@/services/MidiPlayer';
+
+interface MidiTrackData {
+  notes: number[];
+  lengths: number[];
+  tempo: number;
+  duration: number;
+  type?: 'point' | 'counterpoint';
+}
 
 interface BandMember {
   name: string;
@@ -13,6 +23,13 @@ interface BandMember {
   end_y: number;
   radius?: number;
   speed?: number;
+  customMidiTrack?: {
+    tempo: number;
+    instrument_number: number;
+    duration: number;
+    track_data: MidiTrackData;
+    track_number: number;
+  };
 }
 
 const INSTRUMENT_CATEGORIES = {
@@ -21,6 +38,17 @@ const INSTRUMENT_CATEGORIES = {
   percussion: ['percussion'],
   other: ['color_guard']
 } as const;
+
+const INSTRUMENT_TO_CATEGORY: { [key: string]: 'brass' | 'woodwind' | 'percussion' } = {
+  trumpet: 'brass',
+  trombone: 'brass',
+  tuba: 'brass',
+  saxophone: 'woodwind',
+  flute: 'woodwind',
+  clarinet: 'woodwind',
+  percussion: 'percussion',
+  color_guard: 'percussion' // Default to percussion for color guard
+};
 
 export default function NewLevelPage() {
   const router = useRouter();
@@ -35,6 +63,7 @@ export default function NewLevelPage() {
     duration_seconds: 10
   });
   const [bandMembers, setBandMembers] = useState<BandMember[]>([]);
+  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -48,23 +77,33 @@ export default function NewLevelPage() {
     }));
   };
 
-  const handleAddBandMember = () => {
-    setBandMembers(prev => [...prev, {
-      name: `Member ${prev.length + 1}`,
-      instrument: '',
-      instrumentType: 'brass',
-      start_x: 0,
-      start_y: 0,
-      end_x: 100,
-      end_y: 100,
-      radius: 3,
-      speed: 5
-    }]);
+  const handleAddBandMember = async () => {
+    setIsGeneratingMusic(true);
+    try {
+      const newMember: BandMember = {
+        name: `Member ${bandMembers.length + 1}`,
+        instrument: '',
+        instrumentType: 'brass',
+        start_x: 0,
+        start_y: 0,
+        end_x: 100,
+        end_y: 100,
+        radius: 3,
+        speed: 5
+      };
+
+      setBandMembers(prev => [...prev, newMember]);
+    } finally {
+      setIsGeneratingMusic(false);
+    }
   };
 
   const handleBandMemberChange = (index: number, field: keyof BandMember, value: string | number) => {
     setBandMembers(prev => prev.map((member, i) => 
-      i === index ? { ...member, [field]: value } : member
+      i === index ? { 
+        ...member, 
+        [field]: field === 'instrumentType' ? value as BandMember['instrumentType'] : value 
+      } : member
     ));
   };
 
@@ -76,12 +115,172 @@ export default function NewLevelPage() {
     return INSTRUMENT_CATEGORIES[type as keyof typeof INSTRUMENT_CATEGORIES] || [];
   };
 
+  const handleGenerateMusicForMember = async (index: number) => {
+    setIsGeneratingMusic(true);
+    try {
+      const member = bandMembers[index];
+      const category = INSTRUMENT_TO_CATEGORY[member.instrument];
+      
+      const response = await fetch('/api/midi', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          instrument: category,
+          existingPatterns: bandMembers
+            .filter((m, i) => i !== index && m.customMidiTrack)
+            .map(m => ({
+              instrument: INSTRUMENT_TO_CATEGORY[m.instrument],
+              notes: m.customMidiTrack!.track_data.notes,
+              lengths: m.customMidiTrack!.track_data.lengths
+            }))
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate music pattern');
+      }
+
+      const { notes, lengths, type } = await response.json();
+
+      setBandMembers(prev => prev.map((m, i) => {
+        if (i !== index) return m;
+        
+        const updatedMember: BandMember = {
+          ...m,
+          customMidiTrack: {
+            tempo: formData.tempo,
+            instrument_number: member.instrument === 'trumpet' ? 56 :
+                          member.instrument === 'trombone' ? 57 :
+                          member.instrument === 'tuba' ? 58 :
+                          member.instrument === 'saxophone' ? 65 :
+                          member.instrument === 'flute' ? 73 :
+                          member.instrument === 'clarinet' ? 71 :
+                          115,
+            duration: notes[notes.length - 1]?.endTime || 4,
+            track_data: {
+              notes,
+              lengths,
+              tempo: formData.tempo,
+              duration: notes[notes.length - 1]?.endTime || 4,
+              type
+            },
+            track_number: 0
+          }
+        };
+        return updatedMember;
+      }));
+    } catch (err) {
+      console.error('Error generating music:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate music');
+    } finally {
+      setIsGeneratingMusic(false);
+    }
+  };
+
+  const handlePreviewMusic = async (member: BandMember) => {
+    try {
+      // Stop any existing playback first
+      handleStopPreview();
+
+      if (!member.customMidiTrack?.track_data) {
+        setError('No music pattern to preview');
+        return;
+      }
+
+      const { notes, lengths } = member.customMidiTrack.track_data;
+      
+      // Play the pattern with a small delay to ensure clean playback
+      await MidiPlayer.playPattern(
+        notes,
+        lengths,
+        INSTRUMENT_TO_CATEGORY[member.instrument],
+        formData.tempo,
+        0 // Let the MidiPlayer handle timing
+      );
+    } catch (err) {
+      console.error('Error previewing music:', err);
+      setError(err instanceof Error ? err.message : 'Failed to preview music');
+    }
+  };
+
+  const handleStopPreview = () => {
+    MidiPlayer.stopAll();
+  };
+
+  const handlePlayAllTogether = async () => {
+    try {
+      handleStopPreview();
+
+      const patternsToPlay = bandMembers
+        .filter(member => member.customMidiTrack?.track_data)
+        .map(member => ({
+          notes: member.customMidiTrack!.track_data.notes,
+          lengths: member.customMidiTrack!.track_data.lengths,
+          instrument: INSTRUMENT_TO_CATEGORY[member.instrument],
+          type: member.customMidiTrack!.track_data.type
+        }));
+
+      if (patternsToPlay.length === 0) {
+        setError('No music patterns to play');
+        return;
+      }
+
+      await MidiPlayer.playMultiplePatterns(patternsToPlay, true);
+    } catch (err) {
+      console.error('Error playing patterns:', err);
+      setError(err instanceof Error ? err.message : 'Failed to play patterns');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
 
     try {
+      // Generate MIDI tracks for each band member
+      const audioGenerator = new AudioGenerator();
+      const bandMembersWithMidi = bandMembers.map(member => {
+        // Use custom MIDI track if available, otherwise generate one
+        const midiTrack = member.customMidiTrack || (() => {
+          const category = INSTRUMENT_TO_CATEGORY[member.instrument];
+          const generatedMidiTrack = audioGenerator.generateMidiTrack(category);
+          return {
+            tempo: formData.tempo,
+            instrument_number: member.instrument === 'trumpet' ? 56 :
+                          member.instrument === 'trombone' ? 57 :
+                          member.instrument === 'tuba' ? 58 :
+                          member.instrument === 'saxophone' ? 65 :
+                          member.instrument === 'flute' ? 73 :
+                          member.instrument === 'clarinet' ? 71 :
+                          115,
+            duration: generatedMidiTrack.track_data.duration,
+            track_data: generatedMidiTrack.track_data,
+            track_number: 0
+          };
+        })();
+        
+        // Format the band member data to match the new schema structure
+        return {
+          name: member.name,
+          instrument: member.instrument,
+          instrument_type: member.instrument,
+          start_x: member.start_x,
+          start_y: member.start_y,
+          end_x: member.end_x,
+          end_y: member.end_y,
+          radius: member.radius || 1,
+          speed: member.speed || 1,
+          midi_track_notes: midiTrack.track_data.notes,
+          midi_track_lengths: midiTrack.track_data.lengths,
+          midi_track_tempo: midiTrack.tempo,
+          midi_track_instrument: midiTrack.instrument_number,
+          midi_track_duration: midiTrack.duration
+        };
+      });
+
       const response = await fetch('/api/levels', {
         method: 'POST',
         headers: {
@@ -89,10 +288,7 @@ export default function NewLevelPage() {
         },
         body: JSON.stringify({
           ...formData,
-          bandMembers: bandMembers.length > 0 ? bandMembers.map(member => ({
-            ...member,
-            instrument_type: member.instrumentType // Map to match database column name
-          })) : undefined
+          bandMembers: bandMembersWithMidi
         })
       });
 
@@ -102,7 +298,7 @@ export default function NewLevelPage() {
       }
 
       const level = await response.json();
-      router.push(`/levels/${level.id}`);
+      router.push(`/play/${level.id}`);
     } catch (err) {
       console.error('Error creating level:', err);
       setError(err instanceof Error ? err.message : 'Failed to create level');
@@ -228,13 +424,24 @@ export default function NewLevelPage() {
           <div className="mt-8">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Band Members</h2>
-              <button
-                type="button"
-                onClick={handleAddBandMember}
-                className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
-              >
-                Add Member
-              </button>
+              <div className="space-x-2">
+                <button
+                  type="button"
+                  onClick={handlePlayAllTogether}
+                  disabled={bandMembers.length === 0}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+                >
+                  Play All Together
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddBandMember}
+                  disabled={isGeneratingMusic}
+                  className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50"
+                >
+                  Add Member
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -401,6 +608,38 @@ export default function NewLevelPage() {
                         step="0.5"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       />
+                    </div>
+
+                    <div className="mt-4 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateMusicForMember(index)}
+                          disabled={!member.instrument || isGeneratingMusic}
+                          className="px-3 py-1 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 disabled:opacity-50"
+                        >
+                          Generate Music
+                        </button>
+                        {member.customMidiTrack && (
+                          <button
+                            type="button"
+                            onClick={() => handlePreviewMusic(member)}
+                            className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                          >
+                            Preview Pattern
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleStopPreview}
+                          className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+                        >
+                          Stop
+                        </button>
+                      </div>
+                      {member.customMidiTrack && (
+                        <span className="text-sm text-green-600">✓ Music Generated</span>
+                      )}
                     </div>
                   </div>
                 </div>
